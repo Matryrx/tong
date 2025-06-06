@@ -316,31 +316,43 @@ func randomPayload() string {
 
 // -- HTTP/1.1 & HTTP/2 Client --
 func makeClient(proxyAddr string, useH2 bool, tlsConf *tlsutls.Config) *http.Client {
-    if proxyAddr != "" {
-        addr := proxyAddr
-        if strings.HasPrefix(addr, "socks5://") {
-            addr = strings.TrimPrefix(addr, "socks5://")
-        }
-        dialer, err := proxy.SOCKS5("tcp", addr, nil, proxy.Direct)
-        if err != nil {
-            return makeDirectClient(useH2, tlsConf)
-        }
-        tr := &http.Transport{
-            Dial:                dialer.Dial,
-            TLSHandshakeTimeout: 500 * time.Millisecond,
-            DisableKeepAlives:   false,
-            MaxIdleConns:        500,              // Ditingkatkan
-            MaxConnsPerHost:     250,              // Ditingkatkan
-            IdleConnTimeout:     30 * time.Second, // Dioptimalkan
-            DisableCompression:  true,
-            ForceAttemptHTTP2:   useH2,
-        }
-        if useH2 {
-            http2.ConfigureTransport(tr)
-        }
-        return &http.Client{Transport: tr, Timeout: 5 * time.Second}
+    tr := &http.Transport{
+        TLSHandshakeTimeout: 10 * time.Second,    // Ditingkatkan
+        DisableKeepAlives:   false,
+        MaxIdleConns:        1000,                // Ditingkatkan
+        MaxConnsPerHost:     1000,                // Ditingkatkan
+        IdleConnTimeout:     90 * time.Second,    // Ditingkatkan
+        DisableCompression:  true,
+        ForceAttemptHTTP2:   useH2,
     }
-    return makeDirectClient(useH2, tlsConf)
+
+    if proxyAddr != "" {
+        if strings.HasPrefix(proxyAddr, "socks5://") {
+            addr := strings.TrimPrefix(proxyAddr, "socks5://")
+            dialer, err := proxy.SOCKS5("tcp", addr, nil, proxy.Direct)
+            if err == nil {
+                tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+                    return dialer.Dial(network, addr)
+                }
+            }
+        } else {
+            proxyURL, err := url.Parse(proxyAddr)
+            if err == nil {
+                tr.Proxy = http.ProxyURL(proxyURL)
+            }
+        }
+    }
+
+    return &http.Client{
+        Transport: tr,
+        Timeout:   30 * time.Second,      // Ditingkatkan
+        CheckRedirect: func(req *http.Request, via []*http.Request) error {
+            if len(via) >= 10 {
+                return http.ErrUseLastResponse
+            }
+            return nil
+        },
+    }
 }
 
 func makeDirectClient(useH2 bool, tlsConf *tlsutls.Config) *http.Client {
