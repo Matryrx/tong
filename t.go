@@ -457,18 +457,15 @@ func customHTTP2Frame(target string, host string, path string) {
     })
 }
 
-// -- HTTP/3 (QUIC) --
 func customHTTP3(target, path string) {
     roundTripper := &http3.RoundTripper{
-        EnableDatagrams: true,            // Tambahan
-        MaxHeaderBytes: 1 << 100,          // Ditingkatkan
-        MaxResponseHeaderBytes: 1 << 100,   // Ditingkatkan
-        QuicConfig: &quic.Config{        
-            MaxIncomingStreams: 5000,     // Ditingkatkan
-            MaxIncomingUniStreams: 5000,  // Ditingkatkan
-            KeepAlivePeriod: 10 * time.Second,
-            HandshakeTimeout: 5 * time.Second,
-            MaxIdleTimeout: 30 * time.Second,
+        EnableDatagrams: true,
+        QUICConfig: &http3.QUICConfig{
+            MaxIncomingStreams:    1000,
+            MaxIncomingUniStreams: 1000,
+            KeepAlive:            true,
+            HandshakeTimeout:      5 * time.Second,
+            MaxIdleTimeout:        30 * time.Second,
         },
     }
     defer roundTripper.Close()
