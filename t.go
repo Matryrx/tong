@@ -868,16 +868,18 @@ func main() {
         return
     }
 
-    // Enhanced configuration
-    config := &Config{
-        BaseURL:    os.Args[1],
-        Workers:    25000,         // Default ditingkatkan dari 2000
-        ProxyFile:  os.Args[3],
-        UAFile:     os.Args[4],
-        MethodFile: os.Args[5],
-        PathFile:   os.Args[6],
-        Mode:       "super",      // Default ke super mode
-    }
+   config := &Config{
+    BaseURL:    os.Args[1],
+    Workers:    3000,          
+    ProxyFile:  os.Args[3],
+    UAFile:     os.Args[4],
+    MethodFile: os.Args[5],
+    PathFile:   os.Args[6],
+    Mode:       "super",
+    Timeout:    30 * time.Second,    
+    RateLimit:  50 * time.Millisecond, 
+}
+
 
     // Parse worker count
     if workerCount, err := fmt.Sscanf(os.Args[2], "%d", &config.Workers); err == nil && workerCount > 0 {
