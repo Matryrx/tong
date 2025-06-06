@@ -32,13 +32,15 @@ import (
 
 type Config struct {
     BaseURL    string
-    Workers    int      // Diubah default menjadi lebih tinggi di main()
+    Workers    int     
     ProxyFile  string
     UAFile     string
     MethodFile string
     PathFile   string
     Mode       string   // h1, h2, h3, rawtcp, rawudp, mix, super
     UseHTTP2   bool
+    Timeout    time.Duration 
+    RateLimit  time.Duration 
 }
 
 var (
