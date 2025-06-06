@@ -270,13 +270,13 @@ func randomPayload() string {
     case 0:
         // JSON dengan field acak
         return fmt.Sprintf(`{"%s":"%s","%s":%d,"ts":%d}`,
-            randomKey(), randomHex(15+mrand.Intn(10)),
-            randomKey(), mrand.Intn(9999),
+            randomHex(8), randomHex(15+mrand.Intn(10)),
+            randomHex(8), mrand.Intn(9999),
             time.Now().UnixNano())
     case 1:
         // XML inject
         return fmt.Sprintf(`<rpc><method>%s</method><arg>%s</arg></rpc>`,
-            randomKey(), randomHex(20))
+            randomHex(8), randomHex(20))
     case 2:
         // Form-urlencoded
         return fmt.Sprintf("data=%s&time=%d&nonce=%s&sig=%s",
@@ -288,7 +288,7 @@ func randomPayload() string {
         return string(b)
     case 4:
         // Encoded JSON (obfuscated payload)
-        encoded := fmt.Sprintf(`{"data":"%s","meta":"%s"}`, randomHex(16), randomKey())
+        encoded := fmt.Sprintf(`{"data":"%s","meta":"%s"}`, randomHex(16), randomHex(8))
         return "payload=" + url.QueryEscape(encoded)
     case 5:
         // Multipart + boundary spoofing
@@ -299,7 +299,7 @@ func randomPayload() string {
     case 6:
         // GraphQL-like
         return fmt.Sprintf(`{"query":"query {%s(id: \"%s\") {result}}","variables":{}}`,
-            randomKey(), randomHex(12))
+            randomHex(8), randomHex(12))
     default:
         // Raw SQL or command injection simulation
         injections := []string{
