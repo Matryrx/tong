@@ -609,10 +609,15 @@ func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, path
         InsecureSkipVerify: true,
         MinVersion:         tls.VersionTLS12,
         MaxVersion:         tls.VersionTLS13,
+        ServerName:         strings.Split(config.BaseURL, "://")[1],  // Tambahkan ServerName
         CurvePreferences:   []tlsutls.CurveID{tlsutls.X25519, tlsutls.CurveP256, tlsutls.CurveP384},
     }
 
     baseURL := config.BaseURL
+    if !strings.HasPrefix(baseURL, "http") {
+        baseURL = "https://" + baseURL
+    }
+    
     u, _ := url.Parse(baseURL)
     host := u.Hostname()
     target := host
@@ -634,12 +639,16 @@ func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, path
         switch mode {
         case "h2f":
             customHTTP2Frame(target, host, path)
+            atomic.AddInt64(&total, 1)
         case "h3":
             customHTTP3(target, path)
+            atomic.AddInt64(&total, 1)
         case "rawtcp":
             rawTCP(target, host, path)
+            atomic.AddInt64(&total, 1)
         case "rawudp":
             rawUDP(target)
+            atomic.AddInt64(&total, 1)
         default:
             method := methods[mrand.Intn(len(methods))]
             ua := agents[mrand.Intn(len(agents))]
