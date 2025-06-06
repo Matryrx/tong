@@ -26,6 +26,7 @@ import (
     "golang.org/x/net/http2/hpack"
     "golang.org/x/net/proxy"
     tlsutls "github.com/refraction-networking/utls"
+"github.com/quic-go/quic-go"
     "github.com/quic-go/quic-go/http3"
 )
 
