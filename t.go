@@ -597,7 +597,7 @@ func pickMode(mode string) string {
     // Ditambahkan lebih banyak variasi mode
     m := []string{"h1", "h2", "h2c", "h2f", "h3", "rawtcp", "rawudp", "h2f-flood", "h3-flood"}
     return m[mrand.Intn(len(m))]
-}
+}   
 
 func workerSuper(jobs <-chan struct{}, config *Config, proxies, agents, methods, paths, mal []string, wg *sync.WaitGroup) {
     defer wg.Done()
@@ -606,7 +606,7 @@ func workerSuper(jobs <-chan struct{}, config *Config, proxies, agents, methods,
         InsecureSkipVerify: true,
         MinVersion:         tls.VersionTLS12,
         MaxVersion:         tls.VersionTLS13,
-        CurvePreferences:   []tls.CurveID{tls.X25519, tls.CurveP256, tls.CurveP384},
+        CurvePreferences:   []tlsutls.CurveID{tlsutls.X25519, tlsutls.CurveP256, tlsutls.CurveP384},
     }
 
     baseURL := config.BaseURL
