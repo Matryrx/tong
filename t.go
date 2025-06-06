@@ -65,6 +65,12 @@ func randomHex(n int) string {
     return hex.EncodeToString(b)
 }
 
+func shuffle(slice []string) {
+    mrand.Shuffle(len(slice), func(i, j int) {
+        slice[i], slice[j] = slice[j], slice[i]
+    })
+}
+
 func randomCase(s string) string {
     r := []rune(s)
     for i, c := range r {
