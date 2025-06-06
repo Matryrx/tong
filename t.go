@@ -460,24 +460,26 @@ func customHTTP2Frame(target string, host string, path string) {
 func customHTTP3(target, path string) {
     roundTripper := &http3.RoundTripper{
         EnableDatagrams: true,
+        Dial: func(ctx context.Context, addr string, tlsCfg *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
+            return quic.DialAddrEarly(addr, tlsCfg, cfg)
+        },
     }
     defer roundTripper.Close()
 
     client := &http.Client{
         Transport: roundTripper,
-        Timeout:   10 * time.Second,
+        Timeout:   30 * time.Second,  // Ditingkatkan timeout
     }
 
-    // Multiple headers untuk HTTP/3
     headers := []struct {
         key, value string
     }{
-        {"User-Agent", "HTTP/3-client"},
+        {"User-Agent", "Mozilla/5.0 (compatible; HTTP/3.0)"},
         {"Accept", "*/*"},
         {"Accept-Encoding", "gzip, deflate, br"},
         {"Cache-Control", "no-cache"},
-        {"X-HTTP3", "enabled"},
-        {"X-QUIC-Priority", "high"},
+        {"Connection", "keep-alive"},
+        {"Upgrade-Insecure-Requests", "1"},
     }
 
     var wg sync.WaitGroup
@@ -494,14 +496,14 @@ func customHTTP3(target, path string) {
             for _, h := range headers {
                 req.Header.Set(h.key, h.value)
             }
-            
-            req.Header.Set("X-Request-ID", randomHex(16))
-            req.Header.Set("X-Stream-ID", fmt.Sprintf("%d", mrand.Int63()))
 
             resp, err := client.Do(req)
             if err == nil && resp != nil {
                 io.Copy(io.Discard, resp.Body)
                 resp.Body.Close()
+                atomic.AddInt64(&success, 1)
+            } else {
+                atomic.AddInt64(&fail, 1)
             }
         }()
     }
