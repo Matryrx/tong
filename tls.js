@@ -417,17 +417,16 @@ controle_header = [
 ]
 
 const Methods = [
-   "GET", 
-   "HEAD", 
-   "POST"
-"PUT"
-"PATCH"
-"DELETE"
-"HEAD"
-"COPY"
-"MOVE"
-"LINK"
-"LOCK"
+  "COPY",
+  "DELETE",
+  "GET", 
+  "HEAD", 
+  "LINK",
+  "LOCK",
+  "MOVE",
+  "PATCH",
+  "POST",
+  "PUT"
 ];
 const randomMethod = Methods[Math.floor(Math.random() * Methods.length)];
 
