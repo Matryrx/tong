@@ -46,8 +46,8 @@ const hihi = [ "require-corp",
 "ｒｅｑｕｉｒｅ－ｃｏｒｐ",
 "`require-corp`",
 "(require-corp)",
-"require-corp
-unsafe-none",
+"require-corp"
+"unsafe-none",
 "🚫require-corp",
 "require-corp�",
 "require-corp	unsafe-none",
